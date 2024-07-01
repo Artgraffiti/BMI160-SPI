@@ -1,0 +1,40 @@
+menu "Application Configuration"
+		
+	config GPIO_RANGE_MAX
+		int
+		default 33 if IDF_TARGET_ESP32
+		default 46 if IDF_TARGET_ESP32S2
+		default 48 if IDF_TARGET_ESP32S3
+		default 18 if IDF_TARGET_ESP32C2
+		default 19 if IDF_TARGET_ESP32C3
+		default 30 if IDF_TARGET_ESP32C6
+
+	config GPIO_MISO
+		int "MISO GPIO number"
+		range 0 GPIO_RANGE_MAX
+		default 11 if IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3
+		help
+			GPIO number (IOxx) to SPI MISO.
+
+	config GPIO_MOSI
+		int "MOSI GPIO number"
+		range 0 GPIO_RANGE_MAX
+		default 12 if IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3
+		help
+			GPIO number (IOxx) of SPI MOSI.
+
+	config GPIO_SCLK
+		int "SPI CLK GPIO number"
+		range 0 GPIO_RANGE_MAX
+		default 13 if IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3
+		help
+			GPIO number (IOxx) of SPI SCLK.
+
+	config GPIO_CS
+		int "CS GPIO nubmer"
+		range 0 GPIO_RANGE_MAX
+		default 14 if IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3
+		help
+			GPIO number (IOxx) of SPI CS.
+
+endmenu
