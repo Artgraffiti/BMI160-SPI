@@ -8,6 +8,8 @@
 #include "bmi160_defs.h"
 #include <cstdint>
 
+// #define __DEBUG__
+
 #define CMD_READ    0x80
 #define CMD_WRITE   0x7F
 
@@ -59,7 +61,9 @@ int8_t user_spi_read(uint8_t dev_addr, uint8_t reg_addr, uint8_t *read_data, uin
     free(tx_buffer);
     free(rx_buffer);
 
+#ifdef __DEBUG__
     ESP_LOGI(TAG, "reg_addr=0x%X, read_data=0x%X, len=%d", reg_addr, *read_data, len);
+#endif
     return 0;  // Возвращаем успешное выполнение
 }
 
@@ -90,8 +94,9 @@ int8_t user_spi_write(uint8_t dev_addr, uint8_t reg_addr, uint8_t *write_data, u
 
     // Освобождаем выделенную память
     free(tx_buffer);
-    
+#ifdef __DEBUG__
     ESP_LOGI(TAG, "reg_addr=0x%X, write_data=0x%X, len=%d", reg_addr, *write_data, len);
+#endif
     return 0;  // Возвращаем успешное выполнение
 }
 
@@ -125,7 +130,7 @@ void bmi160(void *pvParameters) {
 	accel_sensitivity = 16384.0; // g
 
     // Config Gyro
-	sensor.gyro_cfg.odr = BMI160_GYRO_ODR_1600HZ;
+	sensor.gyro_cfg.odr = BMI160_GYRO_ODR_3200HZ;
 	//sensor.gyro_cfg.range = BMI160_GYRO_RANGE_2000_DPS;
 	sensor.gyro_cfg.range = BMI160_GYRO_RANGE_250_DPS; // -250 --> +250[Deg/Sec]
 	sensor.gyro_cfg.bw = BMI160_GYRO_BW_NORMAL_MODE;
@@ -163,7 +168,7 @@ void bmi160(void *pvParameters) {
         ESP_LOGI(TAG, "accel: ax=%f, ay=%f, az=%f", ax, ay, az);
         ESP_LOGI(TAG, "gyro: gx=%f, gy=%f, gz=%f", gx, gy, gz);
 
-        vTaskDelay(pdMS_TO_TICKS(10));
+        vTaskDelay(pdMS_TO_TICKS(1));
     }
 
     // Never reach here

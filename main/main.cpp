@@ -42,7 +42,7 @@ void spi_init() {
     };
 
     // Initialize the SPI bus
-    ret = spi_bus_initialize(IMU_HOST, &buscfg, SPI_DMA_DISABLED);
+    ret = spi_bus_initialize(IMU_HOST, &buscfg, 3);
     ESP_ERROR_CHECK(ret);
 
     // Add device to bus
