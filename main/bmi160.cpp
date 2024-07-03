@@ -1,4 +1,5 @@
 #include "esp_err.h"
+#include "esp_heap_caps.h"
 #include "freertos/idf_additions.h"
 #include "esp_log.h"
 #include "driver/spi_master.h"
@@ -30,36 +31,37 @@ int8_t user_spi_read(uint8_t dev_addr, uint8_t reg_addr, uint8_t *read_data, uin
     spi_transaction_t t;
     memset(&t, 0, sizeof(t));  // Обнуляем структуру транзакции
 
-    uint8_t *tx_buffer = (uint8_t *)calloc(1, sizeof(uint8_t));
-    uint8_t *rx_buffer = (uint8_t *)calloc(len + 1, sizeof(uint8_t));
+    // Выделение памяти с выравниванием по 32 бита для большей эффективности транзакций
+    uint8_t *send_data = (uint8_t*) heap_caps_aligned_alloc(32, 1, MALLOC_CAP_DMA);
+    uint8_t *recv_data = (uint8_t*) heap_caps_aligned_alloc(32, len+1, MALLOC_CAP_DMA);
 
-    if (tx_buffer == NULL || rx_buffer == NULL) {
+    if (send_data == NULL || recv_data == NULL) {
         ESP_LOGE(TAG, "Не удалось выделить память для буферов");
-        if (tx_buffer) free(tx_buffer);
-        if (rx_buffer) free(rx_buffer);
+        if (send_data) free(send_data);
+        if (recv_data) free(recv_data);
         return -1;  // Возвращаем ошибку
     }
     
-    tx_buffer[0] = reg_addr | CMD_READ;  // Подготовка адреса регистра с командой чтения
+    send_data[0] = reg_addr | CMD_READ;  // Подготовка адреса регистра с командой чтения
     t.length = 8 * (len + 1);  // Длина передачи в битах (адрес регистра + длина данных)
-    t.tx_buffer = tx_buffer;   // Указатель на буфер передачи
-    t.rx_buffer = rx_buffer;   // Указатель на буфер приема
+    t.tx_buffer = send_data;   // Указатель на буфер передачи
+    t.rx_buffer = recv_data;   // Указатель на буфер приема
     t.user = (void*)dev_addr;  // Пользовательские данные (адрес устройства)
 
     ret = spi_device_polling_transmit(spi, &t);  // Выполняем транзакцию
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Ошибка при чтении данных по SPI: %s", esp_err_to_name(ret));
-        free(tx_buffer);
-        free(rx_buffer);
+        heap_caps_free(send_data);
+        heap_caps_free(recv_data);
         return -1;  // Возвращаем ошибку
     }
 
     // Копируем полученные данные в буфер read_data (исключая первый байт)
-    memcpy(read_data, &rx_buffer[1], len);
+    memcpy(read_data, &recv_data[1], len);
 
     // Освобождаем выделенную память
-    free(tx_buffer);
-    free(rx_buffer);
+    heap_caps_free(send_data);
+    heap_caps_free(recv_data);
 
 #ifdef __DEBUG__
     ESP_LOGI(TAG, "reg_addr=0x%X, read_data=0x%X, len=%d", reg_addr, *read_data, len);
@@ -72,28 +74,29 @@ int8_t user_spi_write(uint8_t dev_addr, uint8_t reg_addr, uint8_t *write_data, u
     spi_transaction_t t;
     memset(&t, 0, sizeof(t));  // Обнуляем структуру транзакции
 
-    uint8_t *tx_buffer = (uint8_t*) calloc(len + 1, sizeof(uint8_t));  // Буфер для передачи данных, включая адрес регистра
+    // Выделение памяти с выравниванием по 32 бита для большей эффективности транзакций
+    uint8_t *send_data = (uint8_t*) heap_caps_aligned_alloc(32, len + 1, MALLOC_CAP_DMA);
 
-    if (tx_buffer == NULL) {
+    if (send_data == NULL) {
         ESP_LOGE(TAG, "Не удалось выделить память для буфера");
         return -1;  // Возвращаем ошибку
     }
 
-    tx_buffer[0] = reg_addr & CMD_WRITE;  // Первый байт - адрес регистра
-    memcpy(&tx_buffer[1], write_data, len);  // Копируем данные для записи после адреса регистра
+    send_data[0] = reg_addr & CMD_WRITE;  // Первый байт - адрес регистра
+    memcpy(&send_data[1], write_data, len);  // Копируем данные для записи после адреса регистра
     t.length = (len + 1) * 8;  // Длина передачи в битах
-    t.tx_buffer = tx_buffer;   // Указатель на буфер передачи
-    t.user = (void*)dev_addr;  // Пользовательские данные (адрес устройства)
+    t.tx_buffer = send_data;   // Указатель на буфер передачи
+    t.user = (void*)send_data;  // Пользовательские данные (адрес устройства)
 
     ret = spi_device_polling_transmit(spi, &t);  // Выполняем транзакцию
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Ошибка при передаче данных по SPI: %s", esp_err_to_name(ret));
-        free(tx_buffer);
+        heap_caps_free(send_data);
         return -1;  // Возвращаем ошибку
     }
 
     // Освобождаем выделенную память
-    free(tx_buffer);
+    heap_caps_free(send_data);
 #ifdef __DEBUG__
     ESP_LOGI(TAG, "reg_addr=0x%X, write_data=0x%X, len=%d", reg_addr, *write_data, len);
 #endif
