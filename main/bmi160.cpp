@@ -3,11 +3,11 @@
 #include "freertos/idf_additions.h"
 #include "esp_log.h"
 #include "driver/spi_master.h"
+#include <cstdint>
 
 // bmi160 stuff
 #include "bmi160.h"
 #include "bmi160_defs.h"
-#include <cstdint>
 
 // #define __DEBUG__
 
@@ -29,78 +29,84 @@ float gyro_sensitivity;
 int8_t user_spi_read(uint8_t dev_addr, uint8_t reg_addr, uint8_t *read_data, uint16_t len) {
     esp_err_t ret;
     spi_transaction_t t;
-    memset(&t, 0, sizeof(t));  // Обнуляем структуру транзакции
+    memset(&t, 0, sizeof(t));
 
-    // Выделение памяти с выравниванием по 32 бита для большей эффективности транзакций
+    // Memory allocation with 32-bit alignment for more efficient transactions
     uint8_t *send_data = (uint8_t*) heap_caps_aligned_alloc(32, 1, MALLOC_CAP_DMA);
     uint8_t *recv_data = (uint8_t*) heap_caps_aligned_alloc(32, len+1, MALLOC_CAP_DMA);
 
     if (send_data == NULL || recv_data == NULL) {
-        ESP_LOGE(TAG, "Не удалось выделить память для буферов");
+        ESP_LOGE(TAG, "Failed to allocate memory for buffers");
         if (send_data) free(send_data);
         if (recv_data) free(recv_data);
-        return -1;  // Возвращаем ошибку
+        return -1;
     }
-    
-    send_data[0] = reg_addr | CMD_READ;  // Подготовка адреса регистра с командой чтения
-    t.length = 8 * (len + 1);  // Длина передачи в битах (адрес регистра + длина данных)
-    t.tx_buffer = send_data;   // Указатель на буфер передачи
-    t.rx_buffer = recv_data;   // Указатель на буфер приема
-    t.user = (void*)dev_addr;  // Пользовательские данные (адрес устройства)
 
-    ret = spi_device_polling_transmit(spi, &t);  // Выполняем транзакцию
+    // 1 bit command. 7 bit register address
+    send_data[0] = CMD_READ | reg_addr;
+    
+    // Setting up transaction
+    t.length = 8 * (len + 1);
+    t.tx_buffer = send_data;
+    t.rx_buffer = recv_data;
+
+    ret = spi_device_polling_transmit(spi, &t);
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Ошибка при чтении данных по SPI: %s", esp_err_to_name(ret));
+        ESP_LOGE(TAG, "Error when reading SPI data: %s", esp_err_to_name(ret));
         heap_caps_free(send_data);
         heap_caps_free(recv_data);
-        return -1;  // Возвращаем ошибку
+        return -1;
     }
 
-    // Копируем полученные данные в буфер read_data (исключая первый байт)
+    // Copy the received data (excluding the first byte)
     memcpy(read_data, &recv_data[1], len);
 
-    // Освобождаем выделенную память
+    // Freeing allocated memory
     heap_caps_free(send_data);
     heap_caps_free(recv_data);
 
 #ifdef __DEBUG__
     ESP_LOGI(TAG, "reg_addr=0x%X, read_data=0x%X, len=%d", reg_addr, *read_data, len);
 #endif
-    return 0;  // Возвращаем успешное выполнение
+    return 0;
 }
 
 int8_t user_spi_write(uint8_t dev_addr, uint8_t reg_addr, uint8_t *write_data, uint16_t len) {
     esp_err_t ret;
     spi_transaction_t t;
-    memset(&t, 0, sizeof(t));  // Обнуляем структуру транзакции
+    memset(&t, 0, sizeof(t));
 
-    // Выделение памяти с выравниванием по 32 бита для большей эффективности транзакций
+    // Memory allocation with 32-bit alignment for more efficient transactions
     uint8_t *send_data = (uint8_t*) heap_caps_aligned_alloc(32, len + 1, MALLOC_CAP_DMA);
 
     if (send_data == NULL) {
-        ESP_LOGE(TAG, "Не удалось выделить память для буфера");
-        return -1;  // Возвращаем ошибку
+        ESP_LOGE(TAG, "Failed to allocate memory for the buffer");
+        return -1;
     }
 
-    send_data[0] = reg_addr & CMD_WRITE;  // Первый байт - адрес регистра
-    memcpy(&send_data[1], write_data, len);  // Копируем данные для записи после адреса регистра
-    t.length = (len + 1) * 8;  // Длина передачи в битах
-    t.tx_buffer = send_data;   // Указатель на буфер передачи
-    t.user = (void*)send_data;  // Пользовательские данные (адрес устройства)
+    // 1 bit command. 7 bit register address. Rest is data
+    send_data[0] = CMD_WRITE & reg_addr;
+    memcpy(&send_data[1], write_data, len);
 
-    ret = spi_device_polling_transmit(spi, &t);  // Выполняем транзакцию
+    // Setting up transaction
+    t.length = (len + 1) * 8;
+    t.tx_buffer = send_data;
+    t.flags = SPI_TRANS_DMA_BUFFER_ALIGN_MANUAL;
+
+    ret = spi_device_polling_transmit(spi, &t);
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Ошибка при передаче данных по SPI: %s", esp_err_to_name(ret));
+        ESP_LOGE(TAG, "Error when reading SPI data: %s", esp_err_to_name(ret));
         heap_caps_free(send_data);
-        return -1;  // Возвращаем ошибку
+        return -1;
     }
 
-    // Освобождаем выделенную память
+    // Freeing allocated memory
     heap_caps_free(send_data);
+
 #ifdef __DEBUG__
     ESP_LOGI(TAG, "reg_addr=0x%X, write_data=0x%X, len=%d", reg_addr, *write_data, len);
 #endif
-    return 0;  // Возвращаем успешное выполнение
+    return 0;
 }
 
 void user_delay_ms(uint32_t period) {
@@ -134,7 +140,6 @@ void bmi160(void *pvParameters) {
 
     // Config Gyro
 	sensor.gyro_cfg.odr = BMI160_GYRO_ODR_3200HZ;
-	//sensor.gyro_cfg.range = BMI160_GYRO_RANGE_2000_DPS;
 	sensor.gyro_cfg.range = BMI160_GYRO_RANGE_250_DPS; // -250 --> +250[Deg/Sec]
 	sensor.gyro_cfg.bw = BMI160_GYRO_BW_NORMAL_MODE;
 	sensor.gyro_cfg.power = BMI160_GYRO_NORMAL_MODE;
@@ -171,7 +176,7 @@ void bmi160(void *pvParameters) {
         ESP_LOGI(TAG, "accel: ax=%f, ay=%f, az=%f", ax, ay, az);
         ESP_LOGI(TAG, "gyro: gx=%f, gy=%f, gz=%f", gx, gy, gz);
 
-        vTaskDelay(pdMS_TO_TICKS(1));
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
 
     // Never reach here
