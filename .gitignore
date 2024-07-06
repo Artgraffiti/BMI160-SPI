@@ -5,3 +5,4 @@ sdkconfig.old
 .vscode/
 managed_components/
 .cache/
+compile_commands.json

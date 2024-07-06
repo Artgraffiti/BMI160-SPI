@@ -118,8 +118,7 @@ void bmi160(void *pvParameters) {
 	{
 		ESP_LOGI(TAG, "BMI160 initialization success !");
 		ESP_LOGI(TAG, "Chip ID 0x%X", sensor.chip_id);
-	}
-	else {
+	} else {
 		ESP_LOGE(TAG, "BMI160 initialization fail %d", ret);
 		vTaskDelete(NULL);
 	}
