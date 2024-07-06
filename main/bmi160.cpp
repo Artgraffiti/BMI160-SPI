@@ -26,6 +26,17 @@ float accel_sensitivity;
 float gyro_sensitivity;
 
 
+#ifdef __DEBUG__
+void print_byte_array(const char *label, uint8_t *array, size_t length) {
+    printf("%s: ", label);
+    for (size_t i = 0; i < length; i++) {
+        printf("%02X ", array[i]);
+    }
+    printf("\n");
+}
+#endif
+
+
 int8_t user_spi_read(uint8_t dev_addr, uint8_t reg_addr, uint8_t *read_data, uint16_t len) {
     esp_err_t ret;
     spi_transaction_t t;
@@ -59,7 +70,8 @@ int8_t user_spi_read(uint8_t dev_addr, uint8_t reg_addr, uint8_t *read_data, uin
     heap_caps_free(recv_data);
 
 #ifdef __DEBUG__
-    ESP_LOGI(TAG, "reg_addr=0x%X, read_data=0x%X, len=%d", reg_addr, *read_data, len);
+    ESP_LOGI(TAG, "reg_addr=0x%02X, len=%d", reg_addr & 0x7F, len);
+    print_byte_array("read_data", read_data, len);
 #endif
     return 0;
 }
@@ -97,7 +109,8 @@ int8_t user_spi_write(uint8_t dev_addr, uint8_t reg_addr, uint8_t *write_data, u
     heap_caps_free(send_data);
 
 #ifdef __DEBUG__
-    ESP_LOGI(TAG, "reg_addr=0x%X, write_data=0x%X, len=%d", reg_addr, *write_data, len);
+    ESP_LOGI(TAG, "reg_addr=0x%02X, len=%d", reg_addr & 0x7F, len);
+    print_byte_array("write_data", write_data, len);
 #endif
     return 0;
 }
