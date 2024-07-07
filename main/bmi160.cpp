@@ -42,7 +42,7 @@ int8_t user_spi_read(uint8_t dev_addr, uint8_t reg_addr, uint8_t *read_data, uin
     spi_transaction_t t;
     memset(&t, 0, sizeof(t));
 
-    // Memory allocation with 32-bit alignment for more efficient transactions
+    // Memory allocation with 32-bit alignment for more efficient transactions with DMA
     uint8_t *recv_data = (uint8_t*) heap_caps_aligned_alloc(32, len, MALLOC_CAP_DMA);
 
     if (recv_data == NULL) {
@@ -127,8 +127,7 @@ void bmi160(void *pvParameters) {
     sensor.write = user_spi_write;
     sensor.delay_ms = user_delay_ms;
 	int8_t ret = bmi160_init(&sensor);
-    if (ret == BMI160_OK)
-	{
+    if (ret == BMI160_OK) {
 		ESP_LOGI(TAG, "BMI160 initialization success !");
 		ESP_LOGI(TAG, "Chip ID 0x%X", sensor.chip_id);
 	} else {
@@ -169,6 +168,12 @@ void bmi160(void *pvParameters) {
 		    vTaskDelete(NULL);
         }
 
+#ifdef __DEBUG__
+        ESP_LOGI(TAG, "RAW DATA:");
+        ESP_LOGI(TAG, "ACCEL: x=%f, y=%f, z=%f", (double)accel.x, (double)accel.y, (double)accel.z);
+        ESP_LOGI(TAG, "GYRO: x=%f, y=%f, z=%f", (double)gyro.x, (double)gyro.y, (double)gyro.z); 
+#endif
+
 	    // Convert relative to absolute
         ax = (double)accel.x / accel_sensitivity;
         ay = (double)accel.y / accel_sensitivity;
@@ -181,7 +186,7 @@ void bmi160(void *pvParameters) {
         ESP_LOGI(TAG, "accel: ax=%f, ay=%f, az=%f", ax, ay, az);
         ESP_LOGI(TAG, "gyro: gx=%f, gy=%f, gz=%f", gx, gy, gz);
 
-        vTaskDelay(pdMS_TO_TICKS(100));
+        vTaskDelay(pdMS_TO_TICKS(1));
     }
 
     // Never reach here
