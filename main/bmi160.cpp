@@ -1,29 +1,22 @@
+#include "bmi160_defs.h"
 #include "esp_err.h"
 #include "esp_heap_caps.h"
-#include "freertos/idf_additions.h"
 #include "esp_log.h"
-#include "driver/spi_master.h"
 #include <cstdint>
-
-// bmi160 stuff
-#include "bmi160.h"
-#include "bmi160_defs.h"
+#include "freertos/idf_additions.h"
+#include "driver/spi_master.h"
+#include "bmi160.hpp"
 
 // #define __DEBUG__
 
-#define CMD_READ    0x01
-#define CMD_WRITE   0x00
-
-static const char *TAG = "IMU";
+static const char *TAG = "BMI";
 
 extern spi_device_handle_t spi;
 
 /* IMU Data */
 struct bmi160_dev sensor;
 
-// Accel & Gyro scale factor
-float accel_sensitivity;
-float gyro_sensitivity;
+extern QueueHandle_t bmiQueue;
 
 
 #ifdef __DEBUG__
@@ -121,7 +114,7 @@ void user_delay_ms(uint32_t period) {
 
 
 void bmi160(void *pvParameters) {
-    sensor.id = 1;
+    sensor.id = CONFIG_GPIO_CS;
     sensor.intf = BMI160_SPI_INTF;
     sensor.read = user_spi_read;
     sensor.write = user_spi_write;
@@ -140,14 +133,12 @@ void bmi160(void *pvParameters) {
 	sensor.accel_cfg.range = BMI160_ACCEL_RANGE_2G; // -2 --> +2[g]
 	sensor.accel_cfg.bw = BMI160_ACCEL_BW_NORMAL_AVG4;
 	sensor.accel_cfg.power = BMI160_ACCEL_NORMAL_MODE;
-	accel_sensitivity = 16384.0; // g
 
     // Config Gyro
 	sensor.gyro_cfg.odr = BMI160_GYRO_ODR_3200HZ;
 	sensor.gyro_cfg.range = BMI160_GYRO_RANGE_250_DPS; // -250 --> +250[Deg/Sec]
 	sensor.gyro_cfg.bw = BMI160_GYRO_BW_NORMAL_MODE;
 	sensor.gyro_cfg.power = BMI160_GYRO_NORMAL_MODE;
-	gyro_sensitivity = 131.2; // Deg/Sec
 
     ret = bmi160_set_sens_conf(&sensor);
 	if (ret != BMI160_OK) {
@@ -156,16 +147,17 @@ void bmi160(void *pvParameters) {
 	}
 	ESP_LOGI(TAG, "bmi160_set_sens_conf");
 
-    double ax, ay, az;
-	double gx, gy, gz;
-    struct bmi160_sensor_data accel;
-	struct bmi160_sensor_data gyro;
+    struct AccelGyroData data;
 
     for(;;) {
-        int8_t ret = bmi160_get_sensor_data((BMI160_ACCEL_SEL | BMI160_GYRO_SEL), &accel, &gyro, &sensor);
+        int8_t ret = bmi160_get_sensor_data((BMI160_ACCEL_SEL | BMI160_GYRO_SEL), &data.accel, &data.gyro, &sensor);
         if (ret != BMI160_OK) {
             ESP_LOGE(TAG, "BMI160 get_sensor_data fail %d", ret);
 		    vTaskDelete(NULL);
+        }
+
+        if (xQueueSend(bmiQueue, &data, portMAX_DELAY) != pdPASS) {
+            ESP_LOGE(pcTaskGetName(NULL), "xQueueSend fail");
         }
 
 #ifdef __DEBUG__
@@ -173,20 +165,10 @@ void bmi160(void *pvParameters) {
         ESP_LOGI(TAG, "ACCEL: x=%f, y=%f, z=%f", (double)accel.x, (double)accel.y, (double)accel.z);
         ESP_LOGI(TAG, "GYRO: x=%f, y=%f, z=%f", (double)gyro.x, (double)gyro.y, (double)gyro.z); 
 #endif
+        
+        taskYIELD();
 
-	    // Convert relative to absolute
-        ax = (double)accel.x / accel_sensitivity;
-        ay = (double)accel.y / accel_sensitivity;
-        az = (double)accel.z / accel_sensitivity;
-        gx = (double)gyro.x / gyro_sensitivity;
-        gy = (double)gyro.y / gyro_sensitivity;
-        gz = (double)gyro.z / gyro_sensitivity;
-
-        ESP_LOGI(TAG, "measurements:");
-        ESP_LOGI(TAG, "accel: ax=%f, ay=%f, az=%f", ax, ay, az);
-        ESP_LOGI(TAG, "gyro: gx=%f, gy=%f, gz=%f", gx, gy, gz);
-
-        vTaskDelay(pdMS_TO_TICKS(1));
+        // vTaskDelay(pdMS_TO_TICKS(10));
     }
 
     // Never reach here

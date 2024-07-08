@@ -4,11 +4,10 @@
 #include "driver/spi_master.h"
 #include "sdkconfig.h"
 #include <cstdlib>
+#include "bmi160.hpp"
 
-#define IMU_HOST        SPI2_HOST
-#define TASK_STATS_BUFFER_SIZE 1024
-
-char taskStatsBuffer[TASK_STATS_BUFFER_SIZE];
+#define IMU_HOST                SPI2_HOST
+#define TASK_STATS_BUFFER_SIZE  1024
 
 static const char *TAG = "MAIN";
 
@@ -17,10 +16,11 @@ extern "C" {
 }
 
 void bmi160(void *pvParameters);
-
+void imu(void *pvParameters);
 
 spi_device_handle_t spi;
 
+QueueHandle_t bmiQueue;
 
 void spi_init() {
     esp_err_t ret;
@@ -44,7 +44,7 @@ void spi_init() {
     };
 
     // Initialize the SPI bus
-    ret = spi_bus_initialize(IMU_HOST, &buscfg, 3);
+    ret = spi_bus_initialize(IMU_HOST, &buscfg, SPI_DMA_CH_AUTO);
     ESP_ERROR_CHECK(ret);
 
     // Add device to bus
@@ -52,18 +52,45 @@ void spi_init() {
     ESP_ERROR_CHECK(ret);
 }
 
-void app_main(void)
-{
-    spi_init();
+void uselessStuff1(void * pvParameters){
+    for(;;){
+        taskYIELD();
+    }
+}
 
-    // Create task
-    xTaskCreate(bmi160, "IMU", 1024*4, NULL, 1, NULL);
+void uselessStuff2(void * pvParameters){
+    for(;;){
+        taskYIELD();
+    }
+}
 
-    // Show statistics
+void stats(void* pvParameters){
+    char taskStatsBuffer[TASK_STATS_BUFFER_SIZE];
+
     for (;;) {
         vTaskGetRunTimeStats(taskStatsBuffer);
         printf("Task Runtime Stats:\nTask\t\tRun Time\tPercentage\n%s\n", taskStatsBuffer);
 
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
+}
+
+void app_main(void)
+{
+    spi_init();
+
+    bmiQueue = xQueueCreate(10, sizeof(AccelGyroData));
+    if (bmiQueue == NULL) {
+        ESP_LOGE(TAG, "Failed to create queue");
+		vTaskDelete(NULL);
+    }
+
+    // Create task
+    xTaskCreate(bmi160, "BMI160", 1024*4, NULL, 1, NULL);
+    xTaskCreate(imu, "IMU", 1024*4, NULL, 2, NULL);
+    xTaskCreate(stats, "stats", 1024*4, NULL, 2, NULL);
+    xTaskCreate(uselessStuff1, "ust1", 1024*4, NULL, 1, NULL);
+    xTaskCreate(uselessStuff2, "ust2", 1024*4, NULL, 1, NULL);
+
+    return;
 }
