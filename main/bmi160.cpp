@@ -1,10 +1,15 @@
 #include "bmi160_defs.h"
+#include "esp_attr.h"
 #include "esp_err.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include <cstdint>
-#include "freertos/idf_additions.h"
 #include "driver/spi_master.h"
+#include "driver/gpio.h"
+#include "freertos/projdefs.h"
+#include "hal/gpio_types.h"
+#include "portmacro.h"
+#include "sdkconfig.h"
 #include "bmi160.hpp"
 
 // #define __DEBUG__
@@ -13,11 +18,12 @@ static const char *TAG = "BMI";
 
 extern spi_device_handle_t spi;
 
+extern TaskHandle_t read_data_task_handle;
+
 /* IMU Data */
 struct bmi160_dev sensor;
 
 extern QueueHandle_t bmiQueue;
-
 
 #ifdef __DEBUG__
 void print_byte_array(const char *label, uint8_t *array, size_t length) {
@@ -112,9 +118,15 @@ void user_delay_ms(uint32_t period) {
 	esp_rom_delay_us(period*1000);
 };
 
+static void IRAM_ATTR data_ready_isr_handler(void *pvParameters) {
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+    vTaskNotifyGiveFromISR(read_data_task_handle, &xHigherPriorityTaskWoken);
+
+    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+}
 
 void bmi160(void *pvParameters) {
-    sensor.id = CONFIG_GPIO_CS;
+    sensor.id = CONFIG_GPIO_CS; 
     sensor.intf = BMI160_SPI_INTF;
     sensor.read = user_spi_read;
     sensor.write = user_spi_write;
@@ -147,28 +159,56 @@ void bmi160(void *pvParameters) {
 	}
 	ESP_LOGI(TAG, "bmi160_set_sens_conf");
 
+    // Config Interrupt on esp32
+    gpio_config_t io_conf;
+    io_conf.intr_type = GPIO_INTR_NEGEDGE;
+    io_conf.mode = GPIO_MODE_INPUT;
+    io_conf.pin_bit_mask = (1ULL << CONFIG_GPIO_DATA_RDY_INT);
+    io_conf.pull_down_en = GPIO_PULLDOWN_ENABLE;
+    gpio_config(&io_conf);
+
+    gpio_install_isr_service(0);
+    gpio_isr_handler_add((gpio_num_t)CONFIG_GPIO_DATA_RDY_INT, data_ready_isr_handler, NULL);
+
+    // Config Interrupt
+    struct bmi160_int_settg int_config;
+    int_config.int_channel = BMI160_INT_CHANNEL_1;
+    int_config.int_type = BMI160_ACC_GYRO_DATA_RDY_INT;
+    int_config.int_pin_settg.output_en = 1; // Output enable
+    int_config.int_pin_settg.output_mode = 0; // push-pull mode
+    int_config.int_pin_settg.output_type = 0; // active low
+    int_config.int_pin_settg.edge_ctrl = 1; // edge trigger
+    int_config.int_pin_settg.input_en = 0; // input disabled
+    int_config.int_pin_settg.latch_dur = BMI160_LATCH_DUR_NONE; // non-latched output
+    ret = bmi160_set_int_config(&int_config, &sensor);
+    if (ret != BMI160_OK) {
+		ESP_LOGE(TAG, "BMI160 set_int_conf fail %d", ret);
+		vTaskDelete(NULL);
+	}
+	ESP_LOGI(TAG, "bmi160_set_int_conf");
+
     struct AccelGyroData data;
 
     for(;;) {
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+
         int8_t ret = bmi160_get_sensor_data((BMI160_ACCEL_SEL | BMI160_GYRO_SEL), &data.accel, &data.gyro, &sensor);
         if (ret != BMI160_OK) {
             ESP_LOGE(TAG, "BMI160 get_sensor_data fail %d", ret);
 		    vTaskDelete(NULL);
         }
 
-        if (xQueueSend(bmiQueue, &data, portMAX_DELAY) != pdPASS) {
-            ESP_LOGE(pcTaskGetName(NULL), "xQueueSend fail");
-        }
+        // if (xQueueSend(bmiQueue, &data, portMAX_DELAY) != pdPASS) {
+        //     ESP_LOGE(pcTaskGetName(NULL), "xQueueSend fail");
+        // }
 
 #ifdef __DEBUG__
         ESP_LOGI(TAG, "RAW DATA:");
-        ESP_LOGI(TAG, "ACCEL: x=%f, y=%f, z=%f", (double)accel.x, (double)accel.y, (double)accel.z);
-        ESP_LOGI(TAG, "GYRO: x=%f, y=%f, z=%f", (double)gyro.x, (double)gyro.y, (double)gyro.z); 
+        ESP_LOGI(TAG, "ACCEL: x=%f, y=%f, z=%f", (double)data.accel.x, (double)data.accel.y, (double)data.accel.z);
+        ESP_LOGI(TAG, "GYRO: x=%f, y=%f, z=%f", (double)gyro.x, (double)data.gyro.y, (double)data.gyro.z); 
 #endif
         
         taskYIELD();
-
-        // vTaskDelay(pdMS_TO_TICKS(10));
     }
 
     // Never reach here

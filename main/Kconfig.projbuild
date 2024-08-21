@@ -31,10 +31,15 @@ menu "Application Configuration"
 			GPIO number (IOxx) of SPI SCLK.
 
 	config GPIO_CS
-		int "CS GPIO nubmer"
+		int "CS GPIO number"
 		range 0 GPIO_RANGE_MAX
 		default 14 if IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3
 		help
 			GPIO number (IOxx) of SPI CS.
+
+	config GPIO_DATA_RDY_INT
+		int "INT data ready number"
+		range 0 GPIO_RANGE_MAX
+		default 8
 
 endmenu
