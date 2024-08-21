@@ -50,14 +50,14 @@ int8_t user_spi_read(uint8_t dev_addr, uint8_t reg_addr, uint8_t *read_data, uin
     ret = spi_device_polling_transmit(spi, &t);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Error when reading SPI data: %s", esp_err_to_name(ret));
-        return -1;
+        return ESP_FAIL;
     }
 
 #ifdef __DEBUG__
     ESP_LOGI(TAG, "reg_addr=0x%02X, len=%d", reg_addr & 0x7F, len);
     print_byte_array("read_data", read_data, len);
 #endif
-    return 0;
+    return ESP_OK;
 }
 
 int8_t user_spi_write(uint8_t dev_addr, uint8_t reg_addr, uint8_t *write_data, uint16_t len) {
@@ -74,14 +74,14 @@ int8_t user_spi_write(uint8_t dev_addr, uint8_t reg_addr, uint8_t *write_data, u
     ret = spi_device_polling_transmit(spi, &t);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Error when reading SPI data: %s", esp_err_to_name(ret));
-        return -1;
+        return ESP_FAIL;
     }
 
 #ifdef __DEBUG__
     ESP_LOGI(TAG, "reg_addr=0x%02X, len=%d", reg_addr & 0x7F, len);
     print_byte_array("write_data", write_data, len);
 #endif
-    return 0;
+    return ESP_OK;
 }
 
 void user_delay_ms(uint32_t period) {
