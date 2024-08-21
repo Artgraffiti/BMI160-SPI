@@ -41,32 +41,17 @@ int8_t user_spi_read(uint8_t dev_addr, uint8_t reg_addr, uint8_t *read_data, uin
     spi_transaction_t t;
     memset(&t, 0, sizeof(t));
 
-    // Memory allocation with 32-bit alignment for more efficient transactions with DMA
-    uint8_t *recv_data = (uint8_t*) heap_caps_aligned_alloc(32, len, MALLOC_CAP_DMA);
-
-    if (recv_data == NULL) {
-        ESP_LOGE(TAG, "Failed to allocate memory for buffers");
-        return -1;
-    }
-
     // Setting up transaction
     t.length = 8 * len;
     t.cmd = CMD_READ;
     t.addr = reg_addr;
-    t.rx_buffer = recv_data;
+    t.rx_buffer = read_data;
 
     ret = spi_device_polling_transmit(spi, &t);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Error when reading SPI data: %s", esp_err_to_name(ret));
-        heap_caps_free(recv_data);
         return -1;
     }
-
-    // Copy the received data
-    memcpy(read_data, recv_data, len);
-
-    // Freeing allocated memory
-    heap_caps_free(recv_data);
 
 #ifdef __DEBUG__
     ESP_LOGI(TAG, "reg_addr=0x%02X, len=%d", reg_addr & 0x7F, len);
@@ -80,32 +65,17 @@ int8_t user_spi_write(uint8_t dev_addr, uint8_t reg_addr, uint8_t *write_data, u
     spi_transaction_t t;
     memset(&t, 0, sizeof(t));
 
-    // Memory allocation with 32-bit alignment for more efficient transactions with DMA
-    uint8_t *send_data = (uint8_t*) heap_caps_aligned_alloc(32, len, MALLOC_CAP_DMA);
-
-    if (send_data == NULL) {
-        ESP_LOGE(TAG, "Failed to allocate memory for the buffer");
-        return -1;
-    }
-
-    // Сopy information for sending
-    memcpy(send_data, write_data, len);
-
     // Setting up transaction
     t.length = 8 * len;
     t.cmd = CMD_WRITE;
     t.addr = reg_addr;
-    t.tx_buffer = send_data;
+    t.tx_buffer = write_data;
 
     ret = spi_device_polling_transmit(spi, &t);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Error when reading SPI data: %s", esp_err_to_name(ret));
-        heap_caps_free(send_data);
         return -1;
     }
-
-    // Freeing allocated memory
-    heap_caps_free(send_data);
 
 #ifdef __DEBUG__
     ESP_LOGI(TAG, "reg_addr=0x%02X, len=%d", reg_addr & 0x7F, len);
