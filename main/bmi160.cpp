@@ -1,7 +1,6 @@
 #include "bmi160_defs.h"
 #include "esp_attr.h"
 #include "esp_err.h"
-#include "esp_heap_caps.h"
 #include "esp_log.h"
 #include <cstdint>
 #include "driver/spi_master.h"
@@ -18,10 +17,10 @@ static const char *TAG = "BMI";
 
 extern spi_device_handle_t spi;
 
-extern TaskHandle_t read_data_task_handle;
-
 /* IMU Data */
 struct bmi160_dev sensor;
+
+TaskHandle_t read_data_task_handle = NULL;
 
 extern QueueHandle_t bmiQueue;
 
@@ -117,7 +116,7 @@ void bmi160(void *pvParameters) {
 	sensor.accel_cfg.power = BMI160_ACCEL_NORMAL_MODE;
 
     // Config Gyro
-	sensor.gyro_cfg.odr = BMI160_GYRO_ODR_3200HZ;
+	sensor.gyro_cfg.odr = BMI160_GYRO_ODR_1600HZ;
 	sensor.gyro_cfg.range = BMI160_GYRO_RANGE_250_DPS; // -250 --> +250[Deg/Sec]
 	sensor.gyro_cfg.bw = BMI160_GYRO_BW_NORMAL_MODE;
 	sensor.gyro_cfg.power = BMI160_GYRO_NORMAL_MODE;
@@ -134,7 +133,7 @@ void bmi160(void *pvParameters) {
     io_conf.intr_type = GPIO_INTR_NEGEDGE;
     io_conf.mode = GPIO_MODE_INPUT;
     io_conf.pin_bit_mask = (1ULL << CONFIG_GPIO_DATA_RDY_INT);
-    io_conf.pull_down_en = GPIO_PULLDOWN_ENABLE;
+    io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
     gpio_config(&io_conf);
 
     gpio_install_isr_service(0);
@@ -175,10 +174,8 @@ void bmi160(void *pvParameters) {
 #ifdef __DEBUG__
         ESP_LOGI(TAG, "RAW DATA:");
         ESP_LOGI(TAG, "ACCEL: x=%f, y=%f, z=%f", (double)data.accel.x, (double)data.accel.y, (double)data.accel.z);
-        ESP_LOGI(TAG, "GYRO: x=%f, y=%f, z=%f", (double)gyro.x, (double)data.gyro.y, (double)data.gyro.z); 
+        ESP_LOGI(TAG, "GYRO: x=%f, y=%f, z=%f", (double)data.gyro.x, (double)data.gyro.y, (double)data.gyro.z); 
 #endif
-        
-        taskYIELD();
     }
 
     // Never reach here

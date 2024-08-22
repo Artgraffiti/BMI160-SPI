@@ -20,7 +20,7 @@ void imu(void *pvParameters);
 
 spi_device_handle_t spi;
 
-TaskHandle_t read_data_task_handle = NULL;
+extern TaskHandle_t read_data_task_handle;
 
 QueueHandle_t bmiQueue;
 
@@ -54,22 +54,6 @@ void spi_init() {
     ESP_ERROR_CHECK(ret);
 }
 
-void uselessStuff1(void * pvParameters){
-    for(;;){
-        for (int i = 1; i < 100000; i++);
-        // taskYIELD();
-        vTaskDelay(pdMS_TO_TICKS(1));
-    }
-}
-
-void uselessStuff2(void * pvParameters){
-    for(;;){
-        for (int i = 1; i < 100000; i++);
-        // taskYIELD();
-        vTaskDelay(pdMS_TO_TICKS(1));
-    }
-}
-
 void stats(void* pvParameters){
     char taskStatsBuffer[TASK_STATS_BUFFER_SIZE];
 
@@ -93,10 +77,7 @@ void app_main(void)
 
     // Create task
     xTaskCreate(bmi160, "BMI160", 1024*4, NULL, 2, &read_data_task_handle);
-    // xTaskCreate(imu, "IMU", 1024*4, NULL, 2, NULL);
     xTaskCreate(stats, "stats", 1024*4, NULL, 10, NULL);
-    xTaskCreate(uselessStuff1, "ust1", 1024*4, NULL, 1, NULL);
-    xTaskCreate(uselessStuff2, "ust2", 1024*4, NULL, 1, NULL);
 
     return;
 }
