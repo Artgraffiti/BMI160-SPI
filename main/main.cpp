@@ -1,6 +1,7 @@
 #include <cstdlib>
 
 #include "bmi160.hpp"
+#include "driver/gpio.h"
 #include "driver/spi_common.h"
 #include "driver/spi_master.h"
 #include "esp_log.h"
@@ -13,17 +14,15 @@
 static const char *TAG = "MAIN";
 
 extern "C" {
-void app_main(void);
+    void app_main(void);
 }
 
 void bmi160(void *pvParameters);
 void imu(void *pvParameters);
 
+TaskHandle_t read_data_task_handle;
+QueueHandle_t bmi160_queue;
 spi_device_handle_t spi;
-
-extern TaskHandle_t read_data_task_handle;
-
-QueueHandle_t bmiQueue;
 
 void spi_init() {
     esp_err_t ret;
@@ -55,6 +54,18 @@ void spi_init() {
     ESP_ERROR_CHECK(ret);
 }
 
+void bmi160_data_rdy_int_init() {
+    gpio_config_t io_conf;
+    io_conf.intr_type = GPIO_INTR_NEGEDGE;
+    io_conf.mode = GPIO_MODE_INPUT;
+    io_conf.pin_bit_mask = (1ULL << CONFIG_GPIO_DATA_RDY_INT);
+    io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
+    gpio_config(&io_conf);
+
+    gpio_install_isr_service(0);
+    gpio_isr_handler_add((gpio_num_t)CONFIG_GPIO_DATA_RDY_INT, data_ready_isr_handler, NULL);
+}
+
 void stats(void *pvParameters) {
     char taskStatsBuffer[TASK_STATS_BUFFER_SIZE];
 
@@ -67,10 +78,14 @@ void stats(void *pvParameters) {
 }
 
 void app_main(void) {
+	// Initialize SPI
     spi_init();
 
-    bmiQueue = xQueueCreate(10, sizeof(AccelGyroData));
-    if (bmiQueue == NULL) {
+    // Config interrupts from bmi160
+    bmi160_data_rdy_int_init();
+
+    bmi160_queue = xQueueCreate(10, sizeof(AccelGyroData));
+    if (bmi160_queue == NULL) {
         ESP_LOGE(TAG, "Failed to create queue");
         vTaskDelete(NULL);
     }

@@ -4,7 +4,7 @@
 
 static const char *TAG = "IMU";
 
-extern QueueHandle_t bmiQueue;
+extern QueueHandle_t bmi160_queue;
 
 void imu(void *pvParameters) {
     AccelGyroData data;
@@ -17,7 +17,7 @@ void imu(void *pvParameters) {
     for (;;) {
         // ESP_LOGI(TAG, "messages in Queue: %d", uxQueueMessagesWaiting(bmiQueue));
 
-        if (xQueueReceive(bmiQueue, &data, portMAX_DELAY)) {
+        if (xQueueReceive(bmi160_queue, &data, portMAX_DELAY)) {
             // Convert relative to absolute
             ax = (double)data.accel.x / accel_sensitivity;
             ay = (double)data.accel.y / accel_sensitivity;

@@ -3,13 +3,10 @@
 #include <cstdint>
 
 #include "bmi160_defs.h"
-#include "driver/gpio.h"
 #include "driver/spi_master.h"
-#include "esp_attr.h"
 #include "esp_err.h"
 #include "esp_log.h"
 #include "freertos/projdefs.h"
-#include "hal/gpio_types.h"
 #include "portmacro.h"
 #include "sdkconfig.h"
 
@@ -17,14 +14,12 @@
 
 static const char *TAG = "BMI";
 
+extern TaskHandle_t read_data_task_handle;
+extern QueueHandle_t bmi160_queue;
 extern spi_device_handle_t spi;
 
 /* IMU Data */
 struct bmi160_dev sensor;
-
-TaskHandle_t read_data_task_handle = NULL;
-
-extern QueueHandle_t bmiQueue;
 
 #ifdef __DEBUG__
 void print_byte_array(const char *label, uint8_t *array, size_t length) {
@@ -86,7 +81,7 @@ int8_t user_spi_write(uint8_t dev_addr, uint8_t reg_addr, uint8_t *write_data, u
 
 void user_delay_ms(uint32_t period) { esp_rom_delay_us(period * 1000); };
 
-static void IRAM_ATTR data_ready_isr_handler(void *pvParameters) {
+void IRAM_ATTR data_ready_isr_handler(void *pvParameters) {
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
     vTaskNotifyGiveFromISR(read_data_task_handle, &xHigherPriorityTaskWoken);
 
@@ -127,17 +122,6 @@ void bmi160(void *pvParameters) {
     }
     ESP_LOGI(TAG, "bmi160_set_sens_conf");
 
-    // Config Interrupt on esp32
-    gpio_config_t io_conf;
-    io_conf.intr_type = GPIO_INTR_NEGEDGE;
-    io_conf.mode = GPIO_MODE_INPUT;
-    io_conf.pin_bit_mask = (1ULL << CONFIG_GPIO_DATA_RDY_INT);
-    io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
-    gpio_config(&io_conf);
-
-    gpio_install_isr_service(0);
-    gpio_isr_handler_add((gpio_num_t)CONFIG_GPIO_DATA_RDY_INT, data_ready_isr_handler, NULL);
-
     // Config Interrupt
     struct bmi160_int_settg int_config;
     int_config.int_channel = BMI160_INT_CHANNEL_1;
@@ -160,14 +144,13 @@ void bmi160(void *pvParameters) {
     for (;;) {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
-        int8_t ret =
-            bmi160_get_sensor_data((BMI160_ACCEL_SEL | BMI160_GYRO_SEL), &data.accel, &data.gyro, &sensor);
+        int8_t ret = bmi160_get_sensor_data((BMI160_ACCEL_SEL | BMI160_GYRO_SEL), &data.accel, &data.gyro, &sensor);
         if (ret != BMI160_OK) {
             ESP_LOGE(TAG, "BMI160 get_sensor_data fail %d", ret);
             vTaskDelete(NULL);
         }
 
-        // if (xQueueSend(bmiQueue, &data, portMAX_DELAY) != pdPASS) {
+        // if (xQueueSend(bmi160_queue, &data, portMAX_DELAY) != pdPASS) {
         //     ESP_LOGE(pcTaskGetName(NULL), "xQueueSend fail");
         // }
 
