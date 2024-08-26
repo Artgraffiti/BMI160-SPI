@@ -71,7 +71,7 @@ void stats(void *pvParameters) {
 
     for (;;) {
         vTaskGetRunTimeStats(taskStatsBuffer);
-        printf("Task Runtime Stats:\nTask\t\tRun Time\tPercentage\n%s\n", taskStatsBuffer);
+        printf("\nTask Runtime Stats:\nTask\t\tRun Time\tPercentage\n%s", taskStatsBuffer);
 
         vTaskDelay(pdMS_TO_TICKS(1000));
     }

@@ -129,9 +129,9 @@ void bmi160(void *pvParameters) {
     int_config.int_pin_settg.output_en = 1;                      // Output enable
     int_config.int_pin_settg.output_mode = 0;                    // push-pull mode
     int_config.int_pin_settg.output_type = 0;                    // active low
-    int_config.int_pin_settg.edge_ctrl = 1;                      // edge trigger
     int_config.int_pin_settg.input_en = 0;                       // input disabled
-    int_config.int_pin_settg.latch_dur = BMI160_LATCH_DUR_NONE;  // non-latched output
+    int_config.int_pin_settg.edge_ctrl = 0;                      // edge trigger (This configuration is only meaningful when the pin is enabled as input.)
+    int_config.int_pin_settg.latch_dur = BMI160_LATCH_DUR_NONE;  // non-latched output (Not applied to new data)
     ret = bmi160_set_int_config(&int_config, &sensor);
     if (ret != BMI160_OK) {
         ESP_LOGE(TAG, "BMI160 set_int_conf fail %d", ret);
