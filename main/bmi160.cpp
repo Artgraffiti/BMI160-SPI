@@ -6,6 +6,7 @@
 #include "driver/spi_master.h"
 #include "esp_err.h"
 #include "esp_log.h"
+#include "freertos/idf_additions.h"
 #include "freertos/projdefs.h"
 #include "portmacro.h"
 #include "sdkconfig.h"
@@ -89,6 +90,8 @@ void IRAM_ATTR data_ready_isr_handler(void *pvParameters) {
 }
 
 void bmi160(void *pvParameters) {
+    vTaskSetApplicationTaskTag(NULL, (TaskHookFunction_t) 1);
+
     sensor.id = CONFIG_GPIO_CS;
     sensor.intf = BMI160_SPI_INTF;
     sensor.read = user_spi_read;

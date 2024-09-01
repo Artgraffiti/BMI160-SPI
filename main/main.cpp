@@ -1,3 +1,5 @@
+#include <cstddef>
+#include <cstdio>
 #include <cstdlib>
 
 #include "bmi160.hpp"
@@ -7,6 +9,7 @@
 #include "esp_log.h"
 #include "freertos/idf_additions.h"
 #include "sdkconfig.h"
+#include "debug.h"
 
 #define IMU_HOST SPI2_HOST
 #define TASK_STATS_BUFFER_SIZE 1024
@@ -17,7 +20,6 @@ extern "C" {
     void app_main(void);
 }
 
-void bmi160(void *pvParameters);
 void imu(void *pvParameters);
 
 TaskHandle_t read_data_task_handle;
@@ -67,6 +69,7 @@ void bmi160_data_rdy_int_init() {
 }
 
 void stats(void *pvParameters) {
+    vTaskSetApplicationTaskTag(NULL, (TaskHookFunction_t) 2);
     char taskStatsBuffer[TASK_STATS_BUFFER_SIZE];
 
     for (;;) {
@@ -77,7 +80,18 @@ void stats(void *pvParameters) {
     }
 }
 
+void uselessStuff1(void * pvParameters){
+    vTaskSetApplicationTaskTag(NULL, (TaskHookFunction_t) 3);
+    for(;;){
+        for (int i = 1; i < 10000; i++);
+        // taskYIELD();
+        vTaskDelay(pdMS_TO_TICKS(1));
+    }
+}
+
 void app_main(void) {
+    SetupGPIOTaskSwitch();
+
 	// Initialize SPI
     spi_init();
 
@@ -91,8 +105,9 @@ void app_main(void) {
     }
 
     // Create task
-    xTaskCreate(bmi160, "BMI160", 1024 * 4, NULL, 2, &read_data_task_handle);
-    xTaskCreate(stats, "stats", 1024 * 4, NULL, 10, NULL);
+    xTaskCreate(bmi160, "BMI160", 1024 * 4, NULL, 5, &read_data_task_handle);
+    xTaskCreate(stats, "stats", 1024 * 4, NULL, 2, NULL);
+    xTaskCreate(uselessStuff1, "ust1", 1024*3, NULL, 2, NULL);
 
     return;
 }

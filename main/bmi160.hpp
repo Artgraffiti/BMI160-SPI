@@ -12,3 +12,5 @@ struct AccelGyroData {
 };
 
 void IRAM_ATTR data_ready_isr_handler(void *pvParameters);
+
+void bmi160(void *pvParameters);
