@@ -11,4 +11,8 @@ struct AccelGyroData {
     struct bmi160_sensor_data gyro;
 };
 
-void IRAM_ATTR data_ready_isr_handler(void *pvParameters);
+void bmi160(void *pvParameters);
+
+void bmi160_data_rdy_int_init();
+
+void data_ready_isr_handler(void *pvParameters);

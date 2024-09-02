@@ -1,8 +1,6 @@
 #include "bmi160.hpp"
 
-#include <cstdint>
-
-#include "bmi160_defs.h"
+#include "driver/gpio.h"
 #include "driver/spi_master.h"
 #include "esp_err.h"
 #include "esp_log.h"
@@ -14,12 +12,9 @@
 
 static const char *TAG = "BMI";
 
-extern TaskHandle_t read_data_task_handle;
-extern QueueHandle_t bmi160_queue;
-extern spi_device_handle_t spi;
-
-/* IMU Data */
-struct bmi160_dev sensor;
+TaskHandle_t read_data_task_handle;
+QueueHandle_t bmi160_queue;
+spi_device_handle_t spi;
 
 #ifdef __DEBUG__
 void print_byte_array(const char *label, uint8_t *array, size_t length) {
@@ -81,6 +76,18 @@ int8_t user_spi_write(uint8_t dev_addr, uint8_t reg_addr, uint8_t *write_data, u
 
 void user_delay_ms(uint32_t period) { esp_rom_delay_us(period * 1000); };
 
+void bmi160_data_rdy_int_init() {
+    gpio_config_t io_conf;
+    io_conf.intr_type = GPIO_INTR_NEGEDGE;
+    io_conf.mode = GPIO_MODE_INPUT;
+    io_conf.pin_bit_mask = (1ULL << CONFIG_GPIO_DATA_RDY_INT);
+    io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
+    gpio_config(&io_conf);
+
+    gpio_install_isr_service(0);
+    gpio_isr_handler_add((gpio_num_t)CONFIG_GPIO_DATA_RDY_INT, data_ready_isr_handler, NULL);
+}
+
 void IRAM_ATTR data_ready_isr_handler(void *pvParameters) {
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
     vTaskNotifyGiveFromISR(read_data_task_handle, &xHigherPriorityTaskWoken);
@@ -89,6 +96,7 @@ void IRAM_ATTR data_ready_isr_handler(void *pvParameters) {
 }
 
 void bmi160(void *pvParameters) {
+    struct bmi160_dev sensor;
     sensor.id = CONFIG_GPIO_CS;
     sensor.intf = BMI160_SPI_INTF;
     sensor.read = user_spi_read;
