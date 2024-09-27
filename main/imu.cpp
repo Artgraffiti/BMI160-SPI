@@ -7,12 +7,12 @@ static const char *TAG = "IMU";
 extern QueueHandle_t bmi160_queue;
 
 void imu(void *pvParameters) {
-    AccelGyroData data;
+    BMI160AccelGyroData data;
     double ax, ay, az;
     double gx, gy, gz;
 
-    float accel_sensitivity = 16384.0;  // g
-    float gyro_sensitivity = 131.2;     // Deg/Sec
+    float accel_sensitivity = 16384.0; // g
+    float gyro_sensitivity = 131.2;    // Deg/Sec
 
     for (;;) {
         // ESP_LOGI(TAG, "messages in Queue: %d", uxQueueMessagesWaiting(bmiQueue));
