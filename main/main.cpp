@@ -21,6 +21,7 @@ extern TaskHandle_t read_data_task_handle;
 extern QueueHandle_t bmi160_queue;
 extern spi_device_handle_t spi;
 
+#ifdef CONFIG_FREERTOS_GENERATE_RUN_TIME_STATS
 void stats(void *pvParameters) {
     char taskStatsBuffer[TASK_STATS_BUFFER_SIZE];
 
@@ -31,6 +32,7 @@ void stats(void *pvParameters) {
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
+#endif
 
 void app_main(void) {
     // Initialize SPI
@@ -47,7 +49,13 @@ void app_main(void) {
 
     // Create task
     xTaskCreate(bmi160_read_data_task, "BMI160", 1024 * 4, NULL, 5, &read_data_task_handle);
-    xTaskCreate(stats, "stats", 1024 * 4, NULL, 4, NULL);
+    xTaskCreate(imu, "imu", 1024 * 4, NULL, 4, NULL);
 
+#ifdef CONFIG_FREERTOS_GENERATE_RUN_TIME_STATS
+    xTaskCreate(stats, "stats", 1024 * 4, NULL, 4, NULL);
+#endif
+
+    for (;;)
+        vTaskDelay(100);
     return;
 }

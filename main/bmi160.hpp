@@ -3,6 +3,7 @@
 // bmi160 stuff
 #include "bmi160.h"
 #include "bmi160_defs.h"
+#include "esp_err.h"
 #include "freertos/idf_additions.h"
 #include "hal/spi_types.h"
 #include "soc/gpio_num.h"

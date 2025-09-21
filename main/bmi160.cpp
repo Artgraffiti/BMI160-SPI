@@ -4,6 +4,7 @@
 #include "driver/spi_master.h"
 #include "esp_err.h"
 #include "esp_log.h"
+#include "freertos/idf_additions.h"
 #include "freertos/projdefs.h"
 #include "portmacro.h"
 #include "sdkconfig.h"
@@ -126,7 +127,7 @@ void bmi160_spi_init(spi_host_device_t host_id) {
 }
 
 void bmi160_read_data_task(void *pvParameters) {
-    struct bmi160_dev sensor;
+    bmi160_dev sensor;
     sensor.id = CONFIG_GPIO_CS;
     sensor.intf = BMI160_SPI_INTF;
     sensor.read = user_spi_read;
@@ -148,7 +149,7 @@ void bmi160_read_data_task(void *pvParameters) {
     sensor.accel_cfg.power = BMI160_ACCEL_NORMAL_MODE;
 
     // Config Gyro
-    sensor.gyro_cfg.odr = BMI160_GYRO_ODR_1600HZ;
+    sensor.gyro_cfg.odr = BMI160_ACCEL_ODR_1600HZ;
     sensor.gyro_cfg.range = BMI160_GYRO_RANGE_250_DPS; // -250 --> +250[Deg/Sec]
     sensor.gyro_cfg.bw = BMI160_GYRO_BW_NORMAL_MODE;
     sensor.gyro_cfg.power = BMI160_GYRO_NORMAL_MODE;
@@ -191,9 +192,14 @@ void bmi160_read_data_task(void *pvParameters) {
             vTaskDelete(NULL);
         }
 
-        // if (xQueueSend(bmi160_queue, &data, portMAX_DELAY) != pdPASS) {
-        //     ESP_LOGE(pcTaskGetName(NULL), "xQueueSend fail");
-        // }
+        if (xQueueSend(bmi160_queue, &data, portMAX_DELAY) != pdPASS) {
+            ESP_LOGE(pcTaskGetName(NULL), "xQueueSend fail");
+        }
+
+        // ESP_LOGI(TAG, "RAW DATA:");
+        // ESP_LOGI(TAG, "ACCEL: x=%f, y=%f, z=%f", (double)data.accel.x, (double)data.accel.y, (double)data.accel.z);
+        // ESP_LOGI(TAG, "GYRO: x=%f, y=%f, z=%f", (double)data.gyro.x, (double)data.gyro.y, (double)data.gyro.z);
+        vTaskDelay(pdMS_TO_TICKS(1));
 
 #ifdef __DEBUG__
         ESP_LOGI(TAG, "RAW DATA:");
